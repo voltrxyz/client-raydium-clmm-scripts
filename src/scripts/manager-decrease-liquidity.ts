@@ -249,6 +249,7 @@ const decreaseRaydiumCLMMLiquidity = async () => {
     await setupJupiterSwapForWithdrawStrategy(
       connection,
       decreaseLiquidityAmount.mul(new BN(10_000)).div(new BN(10_000 * 2 + 10)),
+      new BN(0),
       payer,
       vaultStrategyAuth,
       Buffer.from([]),
