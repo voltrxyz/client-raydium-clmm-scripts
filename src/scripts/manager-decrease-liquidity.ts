@@ -40,6 +40,8 @@ import {
   getPdaProtocolPositionAddress,
   getPdaTickArrayAddress,
   MEMO_PROGRAM_ID,
+  PositionUtils,
+  TickArrayLayout,
   TickUtils,
 } from "@raydium-io/raydium-sdk-v2";
 import { Decimal } from "decimal.js";
@@ -245,10 +247,80 @@ const decreaseRaydiumCLMMLiquidity = async () => {
 
   if (useLookupTable) baseAddressLookupTableAddresses.push(lookupTableAddress);
 
+  const strategyInitReceipt = vc.findStrategyInitReceipt(vault, nftMintAccount);
+  const strategy = await vc.fetchStrategyInitReceiptAccount(
+    strategyInitReceipt
+  );
+  const ratioToDecrease = Math.min(
+    1.0,
+    decreaseLiquidityAmount.toNumber() / strategy.positionValue.toNumber()
+  );
+
+  const { amountA, amountB } = PositionUtils.getAmountsFromLiquidity({
+    poolInfo,
+    ownerPosition: position,
+    liquidity: position.liquidity,
+    slippage: 0,
+    add: false,
+    epochInfo: await connection.getEpochInfo(),
+  });
+
+  const expectedOutputPositionAmount =
+    (isAssetToken0 ? amountB : amountA).amount.toNumber() * ratioToDecrease;
+
+  const rpcPoolData = await raydium.clmm.getRpcClmmPoolInfo({
+    poolId: position.poolId,
+  });
+
+  const tickArrayRes = await raydium.connection.getMultipleAccountsInfo([
+    tickArrayLower,
+    tickArrayUpper,
+  ]);
+
+  if (!tickArrayRes[0] || !tickArrayRes[1])
+    throw new Error("tick data not found");
+  const tickArrayLowerDecoded = TickArrayLayout.decode(tickArrayRes[0].data);
+  const tickArrayUpperDecoded = TickArrayLayout.decode(tickArrayRes[1].data);
+  const tickLowerState =
+    tickArrayLowerDecoded.ticks[
+      TickUtils.getTickOffsetInArray(
+        position.tickLower,
+        poolInfo.config.tickSpacing
+      )
+    ];
+
+  const tickUpperState =
+    tickArrayUpperDecoded.ticks[
+      TickUtils.getTickOffsetInArray(
+        position.tickUpper,
+        poolInfo.config.tickSpacing
+      )
+    ];
+
+  const tokenFees = PositionUtils.GetPositionFeesV2(
+    rpcPoolData,
+    position,
+    tickLowerState,
+    tickUpperState
+  );
+
+  const expectedOutputFeeAmount = isAssetToken0
+    ? tokenFees.tokenFeeAmountB.gte(new BN(0))
+      ? tokenFees.tokenFeeAmountB
+      : new BN(0)
+    : tokenFees.tokenFeeAmountA.gte(new BN(0))
+    ? tokenFees.tokenFeeAmountA
+    : new BN(0);
+
+  const expectedOutputAmount = new BN(expectedOutputPositionAmount)
+    .add(expectedOutputFeeAmount)
+    .mul(new BN(99))
+    .div(new BN(100));
+
   const { additionalArgs, addressLookupTableAccounts } =
     await setupJupiterSwapForWithdrawStrategy(
       connection,
-      decreaseLiquidityAmount.mul(new BN(10_000)).div(new BN(10_000 * 2 + 10)),
+      expectedOutputAmount,
       new BN(0),
       payer,
       vaultStrategyAuth,

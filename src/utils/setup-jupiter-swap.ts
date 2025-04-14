@@ -62,17 +62,10 @@ export const setupJupiterSwapForWithdrawStrategy = async (
   txIxs: TransactionInstruction[],
   baseAddressLookupTableAddresses: string[]
 ) => {
-  const assetPrice = await getPythPrice(new PublicKey(assetMintAddress));
-  const outputPrice = await getPythPrice(new PublicKey(outputMintAddress));
-
-  const swapAmount = amount
-    .mul(new BN(outputPrice * 10 ** 6))
-    .div(new BN(assetPrice * 10 ** 6));
-
   return setupJupiterSwap(
     connection,
     amount,
-    swapAmount,
+    amount,
     minimumThresholdAmountOut,
     payer,
     vaultStrategyAuth,

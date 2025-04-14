@@ -78,20 +78,17 @@ const increaseRaydiumCLMMLiquidity = async () => {
 
   const isAssetToken0 = assetMint.toBuffer() < outputMint.toBuffer();
 
-  let { tick: lowerTick } = TickUtils.getPriceAndTick({
+  let { tick: lowerTick, price: lowerPrice } = TickUtils.getPriceAndTick({
     poolInfo,
     price: new Decimal(startPrice),
     baseIn: isAssetToken0,
   });
 
-  let { tick: upperTick } = TickUtils.getPriceAndTick({
+  let { tick: upperTick, price: upperPrice } = TickUtils.getPriceAndTick({
     poolInfo,
     price: new Decimal(endPrice),
     baseIn: isAssetToken0,
   });
-
-  [lowerTick, upperTick] =
-    lowerTick > upperTick ? [upperTick, lowerTick] : [lowerTick, upperTick];
 
   const position = await fetchRaydiumClmmPoolPositionForVault(
     poolId,
@@ -145,6 +142,18 @@ const increaseRaydiumCLMMLiquidity = async () => {
     id,
     lowerTick,
     upperTick
+  );
+
+  const currentPrice = new Decimal(poolInfo.price);
+  const tickPriceRange = upperPrice.minus(lowerPrice);
+  const lhsRatio = currentPrice.sub(lowerPrice).div(tickPriceRange);
+  const rhsRatio = upperPrice.sub(currentPrice).div(tickPriceRange);
+  const assetRatioToSwap = isAssetToken0 ? lhsRatio : rhsRatio;
+  const assetAmountToSwap = new BN(
+    new Decimal(increaseLiquidityAmount.toString())
+      .mul(assetRatioToSwap)
+      .mul(1.01)
+      .toNumber()
   );
 
   let transactionIxs: TransactionInstruction[] = [];
@@ -208,7 +217,7 @@ const increaseRaydiumCLMMLiquidity = async () => {
   const { additionalArgs, addressLookupTableAccounts } =
     await setupJupiterSwapForDepositStrategy(
       connection,
-      increaseLiquidityAmount.mul(new BN(10_000)).div(new BN(10_000 * 2 + 10)),
+      assetAmountToSwap,
       new BN(0),
       payer,
       vaultStrategyAuth,
