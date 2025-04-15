@@ -1,6 +1,7 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { VoltrClient } from "@voltr/vault-sdk";
 import { heliusRpcUrl, vaultAddress } from "../variables";
+import { fetchAllRaydiumClmmPositionsForVault } from "../utils/raydium";
 
 const vault = new PublicKey(vaultAddress);
 
@@ -14,7 +15,17 @@ const queryAllInitStrategies = async () => {
   const allocations = await vc.fetchAllStrategyInitReceiptAccountsOfVault(
     vault
   );
-  allocations.forEach((allocation) => {
+
+  const allPosition = await fetchAllRaydiumClmmPositionsForVault(
+    connection,
+    vault
+  );
+
+  const filteredAllocations = allocations.filter((allocation) =>
+    allPosition.some((p) => p.nftMint.equals(allocation.account.strategy))
+  );
+
+  filteredAllocations.forEach((allocation) => {
     console.log("Pk: ", allocation.publicKey.toBase58());
     console.log("Strategy: ", allocation.account.strategy.toBase58());
     console.log("amount: ", allocation.account.positionValue.toString());

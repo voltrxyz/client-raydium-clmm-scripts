@@ -47,6 +47,7 @@ import {
 import { Decimal } from "decimal.js";
 import { DISCRIMINATOR, RAYDIUM_ADAPTOR_PROGRAM_ID } from "../constants/global";
 import { fetchRaydiumClmmPoolPositionForVault } from "../utils/raydium";
+import { SYSTEM_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/native/system";
 
 const payerKpFile = fs.readFileSync(managerFilePath, "utf-8");
 const payerKpData = JSON.parse(payerKpFile);
@@ -185,7 +186,7 @@ const decreaseRaydiumCLMMLiquidity = async () => {
   // Prepare the remaining accounts
   const remainingAccounts = [
     { pubkey: CLMM_PROGRAM_ID, isSigner: false, isWritable: false },
-    { pubkey: positionNftAccount, isSigner: false, isWritable: false },
+    { pubkey: positionNftAccount, isSigner: false, isWritable: true },
     { pubkey: id, isSigner: false, isWritable: true },
     { pubkey: protocolPosition, isSigner: false, isWritable: true },
     { pubkey: personalPosition, isSigner: false, isWritable: true },
@@ -220,23 +221,21 @@ const decreaseRaydiumCLMMLiquidity = async () => {
     );
 
     remainingAccounts.push(
-      ...[
-        {
-          pubkey: poolRewardVault,
-          isSigner: false,
-          isWritable: true,
-        },
-        {
-          pubkey: ownerRewardVault,
-          isSigner: false,
-          isWritable: true,
-        },
-        {
-          pubkey: rewardMint,
-          isSigner: false,
-          isWritable: false,
-        },
-      ]
+      {
+        pubkey: poolRewardVault,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: ownerRewardVault,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: rewardMint,
+        isSigner: false,
+        isWritable: false,
+      }
     );
   }
 
@@ -330,6 +329,24 @@ const decreaseRaydiumCLMMLiquidity = async () => {
       baseAddressLookupTableAddresses
     );
 
+  if (ratioToDecrease === 1.0) {
+    // required to close position
+    remainingAccounts.push({
+      pubkey: nftMintAccount,
+      isSigner: false,
+      isWritable: true,
+    });
+    remainingAccounts.push({
+      pubkey: payer,
+      isSigner: false,
+      isWritable: true,
+    });
+    remainingAccounts.push({
+      pubkey: SYSTEM_PROGRAM_ID,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
   const createWithdrawStrategyIx = await vc.createWithdrawStrategyIx(
     {
       withdrawAmount: decreaseLiquidityAmount,
