@@ -237,7 +237,16 @@ const createRaydiumCLMMPosition = async () => {
 
   transactionIxs.push(createInitializeStrategyIx);
 
-  if (useLookupTable)
+  const txSig = await sendAndConfirmOptimisedTx(
+    transactionIxs,
+    heliusRpcUrl,
+    payerKp,
+    [nftMintAccountKp]
+  );
+  console.log("Raydium CLMM position created with signature:", txSig);
+  
+  if (useLookupTable) {
+    let transactionIxs1: TransactionInstruction[] = [];
     await setupAddressLookupTable(
       connection,
       payer,
@@ -248,17 +257,19 @@ const createRaydiumCLMMPosition = async () => {
           vaultStrategyAssetAta.toBase58(),
         ]),
       ],
-      transactionIxs,
+      transactionIxs1,
       new PublicKey(lookupTableAddress)
     );
 
-  const txSig = await sendAndConfirmOptimisedTx(
-    transactionIxs,
-    heliusRpcUrl,
-    payerKp,
-    [nftMintAccountKp]
-  );
-  console.log("Raydium CLMM position created with signature:", txSig);
+    const txSig1 = await sendAndConfirmOptimisedTx(
+      transactionIxs1,
+      heliusRpcUrl,
+      payerKp,
+      []
+    );
+
+    console.log(`LUT created with signature: ${txSig1}`);
+  }
 };
 
 const main = async () => {

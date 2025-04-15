@@ -74,32 +74,32 @@ const initVaultAndAddAdaptorHandler = async () => {
   console.log(`Update address into variables.ts`);
   console.log("Vault:", vault.toBase58());
 
-  const transactionIxs1: TransactionInstruction[] = [];
+  if (useLookupTable) {
+    const transactionIxs1: TransactionInstruction[] = [];
 
-  const lut = useLookupTable
-    ? await setupAddressLookupTable(
-        connection,
-        payer,
-        payer,
-        [
-          ...new Set([
-            ...createInitializeVaultIx.keys.map((k) => k.pubkey.toBase58()),
-            ...createAddAdaptorIx.keys.map((k) => k.pubkey.toBase58()),
-          ]),
-        ],
-        transactionIxs1
-      )
-    : null;
+    const lut = await setupAddressLookupTable(
+      connection,
+      payer,
+      payer,
+      [
+        ...new Set([
+          ...createInitializeVaultIx.keys.map((k) => k.pubkey.toBase58()),
+          ...createAddAdaptorIx.keys.map((k) => k.pubkey.toBase58()),
+        ]),
+      ],
+      transactionIxs1
+    );
 
-  const txSig1 = await sendAndConfirmOptimisedTx(
-    transactionIxs1,
-    heliusRpcUrl,
-    payerKp,
-    []
-  );
-  console.log(`LUT created with signature: ${txSig1}`);
-  console.log(`Update address into variables.ts`);
-  if (lut) console.log("Lookup Table:", lut.toBase58());
+    const txSig1 = await sendAndConfirmOptimisedTx(
+      transactionIxs1,
+      heliusRpcUrl,
+      payerKp,
+      []
+    );
+    console.log(`LUT created with signature: ${txSig1}`);
+    console.log(`Update address into variables.ts`);
+    console.log("Lookup Table:", lut.toBase58());
+  }
 };
 
 const main = async () => {
