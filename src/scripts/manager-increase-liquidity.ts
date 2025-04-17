@@ -7,6 +7,7 @@ import {
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddressSync,
+  getMint,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
@@ -37,6 +38,9 @@ import {
   getPdaPersonalPositionAddress,
   getPdaProtocolPositionAddress,
   getPdaTickArrayAddress,
+  getPdaExBitmapAccount,
+  MEMO_PROGRAM_ID,
+  PoolUtils,
   TickUtils,
 } from "@raydium-io/raydium-sdk-v2";
 import { Decimal } from "decimal.js";
@@ -153,7 +157,34 @@ const increaseRaydiumCLMMLiquidity = async () => {
       .toNumber()
   );
 
+  const outputDecimals = await getMint(connection, outputMint).then(
+    (mint) => mint.decimals
+  );
+
+  const assetDecimals = await getMint(connection, assetMint).then(
+    (mint) => mint.decimals
+  );
+
+  const expectedOutputAmount = new BN(
+    new Decimal(assetAmountToSwap.toString())
+      .div(new Decimal(10).pow(assetDecimals))
+      .mul(isAssetToken0 ? currentPrice : new Decimal(1).div(currentPrice))
+      .mul(new Decimal(10).pow(outputDecimals))
+      .floor()
+      .toString()
+  );
+
   let transactionIxs: TransactionInstruction[] = [];
+
+  const { remainingAccounts: raydiumRemainingAccounts } =
+    PoolUtils.computeAmountOutFormat({
+      poolInfo: computePoolInfo,
+      tickArrayCache: tickData[poolId],
+      amountIn: expectedOutputAmount.mul(new BN(1000000)),
+      tokenOut: poolInfo[isAssetToken0 ? "mintB" : "mintA"],
+      slippage: 0.01,
+      epochInfo: await raydium.fetchEpochInfo(),
+    });
 
   const vaultStrategyAssetAta = await setupTokenAccount(
     connection,
@@ -180,6 +211,14 @@ const increaseRaydiumCLMMLiquidity = async () => {
     ? new PublicKey(poolKeys.vault.B)
     : new PublicKey(poolKeys.vault.A);
 
+  const { vaultAssetIdleAuth } = vc.findVaultAddresses(vault);
+  const vaultAssetIdleAta = getAssociatedTokenAddressSync(
+    vaultAssetMint,
+    vaultAssetIdleAuth,
+    true,
+    vaultAssetTokenProgram
+  );
+  
   // Prepare the remaining accounts
   const remainingAccounts = [
     { pubkey: CLMM_PROGRAM_ID, isSigner: false, isWritable: false },
@@ -197,6 +236,18 @@ const increaseRaydiumCLMMLiquidity = async () => {
     { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
     { pubkey: vaultAssetOracle, isSigner: false, isWritable: false },
     { pubkey: vaultOutputOracle, isSigner: false, isWritable: false },
+    {
+      pubkey: new PublicKey(poolInfo.config.id),
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: new PublicKey(poolKeys.observationId),
+      isSigner: false,
+      isWritable: true,
+    },
+    { pubkey: MEMO_PROGRAM_ID, isSigner: false, isWritable: false },
+    { pubkey: vaultAssetIdleAta, isSigner: false, isWritable: true },
   ];
 
   const baseAddressLookupTableAddresses: string[] = [];
@@ -218,6 +269,21 @@ const increaseRaydiumCLMMLiquidity = async () => {
       transactionIxs,
       baseAddressLookupTableAddresses
     );
+
+  remainingAccounts.push({
+    pubkey: getPdaExBitmapAccount(CLMM_PROGRAM_ID, new PublicKey(poolId))
+      .publicKey,
+    isSigner: false,
+    isWritable: true,
+  });
+
+  remainingAccounts.push(
+    ...raydiumRemainingAccounts.map((pk) => ({
+      pubkey: new PublicKey(pk),
+      isSigner: false,
+      isWritable: true,
+    }))
+  );
 
   const createDepositStrategyIx = await vc.createDepositStrategyIx(
     {
