@@ -34,9 +34,7 @@ import {
 } from "../variables";
 import { initSdk } from "../utils/raydium-config";
 import {
-  ApiV3PoolInfoConcentratedItem,
   CLMM_PROGRAM_ID,
-  ClmmKeys,
   getPdaPersonalPositionAddress,
   getPdaProtocolPositionAddress,
   getPdaTickArrayAddress,
@@ -63,9 +61,7 @@ const vc = new VoltrClient(connection);
 
 const createRaydiumCLMMPosition = async () => {
   const raydium = await initSdk();
-  const data = await raydium.api.fetchPoolById({ ids: poolId });
-  let poolInfo: ApiV3PoolInfoConcentratedItem;
-  poolInfo = data[0] as ApiV3PoolInfoConcentratedItem;
+  const { poolInfo, poolKeys } = await raydium.clmm.getPoolInfoFromRpc(poolId);
   const assetMint = new PublicKey(assetMintAddress);
   const outputMint = new PublicKey(outputMintAddress);
 
@@ -165,11 +161,6 @@ const createRaydiumCLMMPosition = async () => {
     vaultOutputTokenProgram
   );
 
-  const poolKeysList = await raydium.api.fetchPoolKeysById({
-    idList: [poolId],
-  });
-  const poolKeys: ClmmKeys = poolKeysList[0] as ClmmKeys;
-
   const raydiumVaultAssetAta = isAssetToken0
     ? new PublicKey(poolKeys.vault.A)
     : new PublicKey(poolKeys.vault.B);
@@ -244,7 +235,7 @@ const createRaydiumCLMMPosition = async () => {
     [nftMintAccountKp]
   );
   console.log("Raydium CLMM position created with signature:", txSig);
-  
+
   if (useLookupTable) {
     let transactionIxs1: TransactionInstruction[] = [];
     await setupAddressLookupTable(

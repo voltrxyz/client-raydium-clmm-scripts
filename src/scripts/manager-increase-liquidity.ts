@@ -33,9 +33,7 @@ import {
 import { setupJupiterSwapForDepositStrategy } from "../utils/setup-jupiter-swap";
 import { initSdk } from "../utils/raydium-config";
 import {
-  ApiV3PoolInfoConcentratedItem,
   CLMM_PROGRAM_ID,
-  ClmmKeys,
   getPdaPersonalPositionAddress,
   getPdaProtocolPositionAddress,
   getPdaTickArrayAddress,
@@ -65,9 +63,8 @@ const increaseLiquidityAmount = new BN(increaseLiquidityAssetAmount);
 
 const increaseRaydiumCLMMLiquidity = async () => {
   const raydium = await initSdk();
-  const data = await raydium.api.fetchPoolById({ ids: poolId });
-  let poolInfo: ApiV3PoolInfoConcentratedItem;
-  poolInfo = data[0] as ApiV3PoolInfoConcentratedItem;
+  const { poolInfo, poolKeys, computePoolInfo, tickData } =
+    await raydium.clmm.getPoolInfoFromRpc(poolId);
   const assetMint = new PublicKey(assetMintAddress);
   const outputMint = new PublicKey(outputMintAddress);
 
@@ -175,11 +172,6 @@ const increaseRaydiumCLMMLiquidity = async () => {
     transactionIxs,
     vaultOutputTokenProgram
   );
-
-  const poolKeysList = await raydium.api.fetchPoolKeysById({
-    idList: [poolId],
-  });
-  const poolKeys: ClmmKeys = poolKeysList[0] as ClmmKeys;
 
   const raydiumVaultAssetAta = isAssetToken0
     ? new PublicKey(poolKeys.vault.A)
