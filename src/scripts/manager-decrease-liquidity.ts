@@ -320,8 +320,7 @@ const decreaseRaydiumCLMMLiquidity = async () => {
       baseAddressLookupTableAddresses
     );
 
-  if (ratioToDecrease === 1.0) {
-    // required to close position
+  if (ratioToDecrease === 1.0 || position.liquidity.isZero()) {
     remainingAccounts.push({
       pubkey: nftMintAccount,
       isSigner: false,
@@ -338,6 +337,7 @@ const decreaseRaydiumCLMMLiquidity = async () => {
       isWritable: false,
     });
   }
+
   const createWithdrawStrategyIx = await vc.createWithdrawStrategyIx(
     {
       withdrawAmount: decreaseLiquidityAmount,
