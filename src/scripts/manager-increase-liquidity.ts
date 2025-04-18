@@ -308,7 +308,7 @@ const increaseRaydiumCLMMLiquidity = async () => {
       instructionDiscriminator: Buffer.from(
         DISCRIMINATOR.INCREASE_CLMM_LIQUIDITY
       ),
-      additionalArgs,
+      additionalArgs: additionalArgs.length > 0 ? additionalArgs : null,
     },
     {
       manager: payer,
