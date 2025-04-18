@@ -78,15 +78,19 @@ const decreaseRaydiumCLMMLiquidity = async () => {
 
   const isAssetToken0 = assetMint.toBuffer() < outputMint.toBuffer();
 
+  const [startPriceCorrected, endPriceCorrected] = isAssetToken0
+    ? [new Decimal(startPrice), new Decimal(endPrice)]
+    : [new Decimal(1).div(endPrice), new Decimal(1).div(startPrice)];
+
   let { tick: lowerTick } = TickUtils.getPriceAndTick({
     poolInfo,
-    price: new Decimal(startPrice),
+    price: new Decimal(startPriceCorrected),
     baseIn: isAssetToken0,
   });
 
   let { tick: upperTick } = TickUtils.getPriceAndTick({
     poolInfo,
-    price: new Decimal(endPrice),
+    price: new Decimal(endPriceCorrected),
     baseIn: isAssetToken0,
   });
 
@@ -167,12 +171,9 @@ const decreaseRaydiumCLMMLiquidity = async () => {
     vaultOutputTokenProgram
   );
 
-  const raydiumVaultAssetAta = isAssetToken0
-    ? new PublicKey(poolKeys.vault.A)
-    : new PublicKey(poolKeys.vault.B);
-  const raydiumVaultOutputAta = isAssetToken0
-    ? new PublicKey(poolKeys.vault.B)
-    : new PublicKey(poolKeys.vault.A);
+  const [raydiumVaultAssetAta, raydiumVaultOutputAta] = isAssetToken0
+    ? [new PublicKey(poolKeys.vault.A), new PublicKey(poolKeys.vault.B)]
+    : [new PublicKey(poolKeys.vault.B), new PublicKey(poolKeys.vault.A)];
 
   // Prepare the remaining accounts
   const remainingAccounts = [

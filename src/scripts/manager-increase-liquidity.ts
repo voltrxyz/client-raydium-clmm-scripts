@@ -79,16 +79,32 @@ const increaseRaydiumCLMMLiquidity = async () => {
 
   const isAssetToken0 = assetMint.toBuffer() < outputMint.toBuffer();
 
-  let { tick: lowerTick, price: lowerPrice } = TickUtils.getPriceAndTick({
+  const [startPriceCorrected, endPriceCorrected] = isAssetToken0
+    ? [new Decimal(startPrice), new Decimal(endPrice)]
+    : [new Decimal(1).div(endPrice), new Decimal(1).div(startPrice)];
+
+  let { tick: lowerTick } = TickUtils.getPriceAndTick({
     poolInfo,
-    price: new Decimal(startPrice),
-    baseIn: isAssetToken0,
+    price: new Decimal(startPriceCorrected),
+    baseIn: true,
   });
 
-  let { tick: upperTick, price: upperPrice } = TickUtils.getPriceAndTick({
+  let { tick: upperTick } = TickUtils.getPriceAndTick({
     poolInfo,
-    price: new Decimal(endPrice),
-    baseIn: isAssetToken0,
+    price: new Decimal(endPriceCorrected),
+    baseIn: true,
+  });
+
+  let { price: lowerTickPrice } = TickUtils.getTickPrice({
+    poolInfo,
+    tick: lowerTick,
+    baseIn: true,
+  });
+
+  let { price: upperTickPrice } = TickUtils.getTickPrice({
+    poolInfo,
+    tick: upperTick,
+    baseIn: true,
   });
 
   const position = await fetchRaydiumClmmPoolPositionForVault(
@@ -146,9 +162,9 @@ const increaseRaydiumCLMMLiquidity = async () => {
   );
 
   const currentPrice = new Decimal(poolInfo.price);
-  const tickPriceRange = upperPrice.minus(lowerPrice);
-  const lhsRatio = currentPrice.sub(lowerPrice).div(tickPriceRange);
-  const rhsRatio = upperPrice.sub(currentPrice).div(tickPriceRange);
+  const tickPriceRange = upperTickPrice.minus(lowerTickPrice);
+  const lhsRatio = currentPrice.sub(lowerTickPrice).div(tickPriceRange);
+  const rhsRatio = upperTickPrice.sub(currentPrice).div(tickPriceRange);
   const assetRatioToSwap = isAssetToken0 ? lhsRatio : rhsRatio;
   const assetAmountToSwap = new BN(
     new Decimal(increaseLiquidityAmount.toString())
@@ -165,10 +181,14 @@ const increaseRaydiumCLMMLiquidity = async () => {
     (mint) => mint.decimals
   );
 
+  const currentOutputPerAssetPrice = isAssetToken0
+    ? currentPrice
+    : new Decimal(1).div(currentPrice);
+
   const expectedOutputAmount = new BN(
     new Decimal(assetAmountToSwap.toString())
       .div(new Decimal(10).pow(assetDecimals))
-      .mul(isAssetToken0 ? currentPrice : new Decimal(1).div(currentPrice))
+      .mul(currentOutputPerAssetPrice)
       .mul(new Decimal(10).pow(outputDecimals))
       .floor()
       .toString()
@@ -180,7 +200,7 @@ const increaseRaydiumCLMMLiquidity = async () => {
     PoolUtils.computeAmountOutFormat({
       poolInfo: computePoolInfo,
       tickArrayCache: tickData[poolId],
-      amountIn: expectedOutputAmount.mul(new BN(1000000)),
+      amountIn: expectedOutputAmount,
       tokenOut: poolInfo[isAssetToken0 ? "mintB" : "mintA"],
       slippage: 0.01,
       epochInfo: await raydium.fetchEpochInfo(),
@@ -204,12 +224,9 @@ const increaseRaydiumCLMMLiquidity = async () => {
     vaultOutputTokenProgram
   );
 
-  const raydiumVaultAssetAta = isAssetToken0
-    ? new PublicKey(poolKeys.vault.A)
-    : new PublicKey(poolKeys.vault.B);
-  const raydiumVaultOutputAta = isAssetToken0
-    ? new PublicKey(poolKeys.vault.B)
-    : new PublicKey(poolKeys.vault.A);
+  const [raydiumVaultAssetAta, raydiumVaultOutputAta] = isAssetToken0
+    ? [new PublicKey(poolKeys.vault.A), new PublicKey(poolKeys.vault.B)]
+    : [new PublicKey(poolKeys.vault.B), new PublicKey(poolKeys.vault.A)];
 
   const { vaultAssetIdleAuth } = vc.findVaultAddresses(vault);
   const vaultAssetIdleAta = getAssociatedTokenAddressSync(
@@ -218,7 +235,7 @@ const increaseRaydiumCLMMLiquidity = async () => {
     true,
     vaultAssetTokenProgram
   );
-  
+
   // Prepare the remaining accounts
   const remainingAccounts = [
     { pubkey: CLMM_PROGRAM_ID, isSigner: false, isWritable: false },
