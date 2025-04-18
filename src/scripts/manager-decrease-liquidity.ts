@@ -212,14 +212,10 @@ const decreaseRaydiumCLMMLiquidity = async () => {
       : []),
   ];
 
-  for (let i = 0; i < poolInfo.rewardDefaultInfos.length; i++) {
+  for (let i = 0; i < poolKeys.rewardInfos.length; i++) {
     const poolRewardVault = new PublicKey(poolKeys.rewardInfos[i].vault);
-    const rewardMint = new PublicKey(
-      poolInfo.rewardDefaultInfos[i].mint.address
-    );
-    const rewardProgram = new PublicKey(
-      poolInfo.rewardDefaultInfos[i].mint.programId
-    );
+    const rewardMint = new PublicKey(poolKeys.rewardInfos[i].mint.address);
+    const rewardProgram = new PublicKey(poolKeys.rewardInfos[i].mint.programId);
     const ownerRewardVault = await setupTokenAccount(
       connection,
       payer,
