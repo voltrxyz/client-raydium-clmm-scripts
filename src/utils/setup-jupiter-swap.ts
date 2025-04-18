@@ -132,7 +132,7 @@ export async function setupJupiterSwap(
             `&amount=` +
             `${swapAmount.toString()}` +
             `&slippageBps=` +
-            `${slippageBps}` +
+            `${isDeposit ? slippageBps : 10_000}` +
             `&maxAccounts=` +
             `${maxAccounts}`
         )
@@ -207,12 +207,26 @@ export async function setupJupiterSwap(
           isWritable: key.isWritable,
         }))
       );
-
       // Combine base data with Jupiter swap data
+      if (!isDeposit) {
+        const withdrawData = Buffer.from([
+          ...new BN(jupQuoteResponse.inAmount).toArrayLike(Buffer, "le", 8),
+          ...new BN(jupQuoteResponse.outAmount).toArrayLike(Buffer, "le", 8),
+          ...new BN(slippageBps).toArrayLike(Buffer, "le", 2),
+        ]);
+
+        const bufferLength = additionalArgs.length + withdrawData.length;
+
+        additionalArgs = Buffer.concat(
+          [additionalArgs, withdrawData],
+          bufferLength
+        );
+      }
+
       const jupSwapData = Buffer.from(swapInstructionPayload.data, "base64");
-      const bufferLength = additionalArgsBase.length + jupSwapData.length;
+      const bufferLength = additionalArgs.length + jupSwapData.length;
       additionalArgs = Buffer.concat(
-        [additionalArgsBase, jupSwapData],
+        [additionalArgs, jupSwapData],
         bufferLength
       );
     } catch (error) {
