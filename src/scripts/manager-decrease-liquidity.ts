@@ -34,10 +34,12 @@ import { setupJupiterSwapForWithdrawStrategy } from "../utils/setup-jupiter-swap
 import { initSdk } from "../utils/raydium-config";
 import {
   CLMM_PROGRAM_ID,
+  getPdaExBitmapAccount,
   getPdaPersonalPositionAddress,
   getPdaProtocolPositionAddress,
   getPdaTickArrayAddress,
   MEMO_PROGRAM_ID,
+  PoolUtils,
   PositionUtils,
   TickArrayLayout,
   TickUtils,
@@ -193,6 +195,21 @@ const decreaseRaydiumCLMMLiquidity = async () => {
     { pubkey: MEMO_PROGRAM_ID, isSigner: false, isWritable: false },
     { pubkey: vaultAssetOracle, isSigner: false, isWritable: false },
     { pubkey: vaultOutputOracle, isSigner: false, isWritable: false },
+    ...(PoolUtils.isOverflowDefaultTickarrayBitmap(
+      poolInfo.config.tickSpacing,
+      [tickArrayLowerStartIndex, tickArrayUpperStartIndex]
+    )
+      ? [
+          {
+            pubkey: getPdaExBitmapAccount(
+              CLMM_PROGRAM_ID,
+              new PublicKey(poolId)
+            ).publicKey,
+            isSigner: false,
+            isWritable: true,
+          },
+        ]
+      : []),
   ];
 
   for (let i = 0; i < poolInfo.rewardDefaultInfos.length; i++) {

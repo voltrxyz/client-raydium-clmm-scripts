@@ -38,6 +38,8 @@ import {
   getPdaPersonalPositionAddress,
   getPdaProtocolPositionAddress,
   getPdaTickArrayAddress,
+  getPdaExBitmapAccount,
+  PoolUtils,
   TickUtils,
 } from "@raydium-io/raydium-sdk-v2";
 import Decimal from "decimal.js";
@@ -223,6 +225,21 @@ const createRaydiumCLMMPosition = async () => {
         { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: vaultAssetMint, isSigner: false, isWritable: false },
         { pubkey: vaultOutputMint, isSigner: false, isWritable: false },
+        ...(PoolUtils.isOverflowDefaultTickarrayBitmap(
+          poolInfo.config.tickSpacing,
+          [tickArrayLowerStartIndex, tickArrayUpperStartIndex]
+        )
+          ? [
+              {
+                pubkey: getPdaExBitmapAccount(
+                  CLMM_PROGRAM_ID,
+                  new PublicKey(poolId)
+                ).publicKey,
+                isSigner: false,
+                isWritable: true,
+              },
+            ]
+          : []),
       ],
     }
   );
